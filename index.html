@@ -3,232 +3,146 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Đồng hồ đếm ngược 10 phút</title>
+  <title>Game kiểm tra tốc độ</title>
   <style>
-    :root {
-      --bg: #101828;
-      --panel: #1a2438;
-      --ink: #f2f5fa;
-      --muted: #9aa6bd;
-      --accent: #4cc9a6;
-      --danger: #ff5a5f;
-      --line: #2c3a56;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
     body {
       margin: 0;
-      display: grid;
-      place-items: center;
-      background: var(--bg);
-      color: var(--ink);
-      font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-      padding: 20px;
-    }
-    .timer-card {
-      width: 100%;
-      max-width: 520px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 32px 24px;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #eef1f5;
+      color: #1b2433;
       text-align: center;
+      min-height: 100vh;
     }
-    h1 { margin: 0 0 4px; font-size: 1.3rem; }
-    .sub { margin: 0 0 24px; color: var(--muted); font-size: 0.95rem; }
+    h1 { margin: 0; padding: 16px 0 8px; font-size: 1.6rem; }
 
-    #display {
-      font-family: "Consolas", "SF Mono", Menlo, monospace;
-      font-variant-numeric: tabular-nums;
-      font-size: clamp(4rem, 18vw, 7rem);
-      font-weight: 700;
-      line-height: 1;
-      margin: 0 0 20px;
-      transition: color 0.3s;
-    }
+    /* Thông tin: điểm số và thời gian */
+    #info { font-size: 1.3rem; font-weight: 600; margin-bottom: 10px; }
+    #info span { color: #2f5bff; }
 
-    /* Dưới 1 phút: đổi màu đỏ + nhấp nháy phóng to nhẹ mỗi giây */
-    #display.warning {
-      color: var(--danger);
-      animation: pulse 1s ease-in-out infinite;
+    #startBtn {
+      font: inherit; font-weight: 600;
+      padding: 10px 22px;
+      border: 0; border-radius: 8px;
+      background: #2f5bff; color: #fff; cursor: pointer;
     }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50%      { transform: scale(1.08); opacity: 0.7; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #display.warning { animation: none; }
-    }
+    #startBtn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 24px; }
-    #progress { height: 100%; width: 100%; background: var(--accent); transition: width 0.25s linear, background 0.3s; }
-    #display.warning ~ .bar #progress { background: var(--danger); }
+    /* Khu vực chơi: 600x400, định vị tuyệt đối, căn giữa ngang */
+    #arena {
+      position: absolute;
+      left: 50%;
+      top: 150px;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: #fff7d6;
+      border: 3px solid #2f5bff;
+      border-radius: 10px;
+    }
+    /* Khi hết giờ: khóa mọi thao tác trong khu vực chơi */
+    #arena.locked { pointer-events: none; opacity: 0.6; }
 
-    .buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-    button {
-      font: inherit;
-      font-weight: 600;
-      padding: 12px 22px;
-      border-radius: 8px;
-      border: 2px solid var(--accent);
-      background: var(--accent);
-      color: #08231b;
+    /* Mục tiêu: hình tròn nhỏ, định vị tuyệt đối trong #arena */
+    #target {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #ff5a5f;
+      border: 3px solid #b3261e;
       cursor: pointer;
+      display: none;            /* ẩn cho tới khi bấm Bắt đầu */
     }
-    button.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
-    button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
-    button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    #sync { margin: 20px 0 0; font-size: 0.82rem; color: var(--muted); }
-
-    dialog {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel);
-      color: var(--ink);
-      padding: 28px 28px 24px;
-      max-width: 380px;
-      text-align: center;
+    /* Thông báo kết quả cuối game, nằm giữa khu vực chơi */
+    #result {
+      position: absolute;
+      left: 0; right: 0; top: 40%;
+      font-size: 2rem; font-weight: 700;
+      color: #b3261e;
+      display: none;
     }
-    dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
-    dialog h2 { margin: 0 0 8px; }
-    dialog p { margin: 0 0 20px; color: var(--muted); }
   </style>
 </head>
 <body>
-  <main class="timer-card">
-    <h1>Đồng hồ đếm ngược</h1>
-    <p class="sub">10 phút. Dưới 1 phút đồng hồ sẽ chuyển đỏ và nhấp nháy.</p>
+  <h1>Game kiểm tra tốc độ</h1>
 
-    <div id="display" role="timer" aria-live="off">10:00</div>
-    <div class="bar" aria-hidden="true"><div id="progress"></div></div>
+  <div id="info">
+    Điểm: <span id="score">0</span> &nbsp;|&nbsp;
+    Thời gian: <span id="time">30</span> giây
+  </div>
+  <button id="startBtn" type="button">Bắt đầu trò chơi</button>
 
-    <div class="buttons">
-      <button id="startBtn" type="button">Bắt đầu</button>
-      <button id="pauseBtn" type="button" class="secondary" disabled>Tạm dừng</button>
-      <button id="resetBtn" type="button" class="secondary">Đặt lại</button>
-    </div>
-    <p id="sync"></p>
-  </main>
-
-  <dialog id="modal" aria-labelledby="modalTitle">
-    <h2 id="modalTitle">Hết giờ!</h2>
-    <p>10 phút đã trôi qua.</p>
-    <button id="closeBtn" type="button">Đóng</button>
-  </dialog>
+  <div id="arena">
+    <div id="target"></div>
+    <div id="result"></div>
+  </div>
 
   <script>
-    const TOTAL_MS = 10 * 60 * 1000; // 10 phút
-    const WARNING_MS = 60 * 1000;    // dưới 1 phút
+    const GAME_SECONDS = 30;       // thời gian một ván chơi
+    const MOVE_EVERY_MS = 1000;    // mục tiêu tự đổi chỗ mỗi 1 giây nếu chưa click
 
-    const display = document.getElementById("display");
-    const progress = document.getElementById("progress");
+    const arena = document.getElementById("arena");
+    const target = document.getElementById("target");
+    const scoreEl = document.getElementById("score");
+    const timeEl = document.getElementById("time");
     const startBtn = document.getElementById("startBtn");
-    const pauseBtn = document.getElementById("pauseBtn");
-    const resetBtn = document.getElementById("resetBtn");
-    const modal = document.getElementById("modal");
-    const closeBtn = document.getElementById("closeBtn");
-    const syncEl = document.getElementById("sync");
+    const resultEl = document.getElementById("result");
 
-    let intervalId = null;   // luôn chỉ có tối đa 1 interval
-    let remainingMs = TOTAL_MS;
-    let endTime = 0;         // mốc kết thúc (theo giờ server đã hiệu chỉnh)
-    let serverOffset = 0;    // chênh lệch giờ server - giờ máy
+    let score = 0;
+    let timeLeft = GAME_SECONDS;
+    let countdownId = null;   // id của bộ đếm ngược
+    let moveId = null;        // id của bộ tự đổi vị trí
 
-    // Giờ hiện tại, đã bù chênh lệch với server
-    const now = () => Date.now() + serverOffset;
-
-    // Định dạng MM:SS
-    function format(ms) {
-      const totalSec = Math.ceil(ms / 1000);
-      const m = String(Math.floor(totalSec / 60)).padStart(2, "0");
-      const s = String(totalSec % 60).padStart(2, "0");
-      return m + ":" + s;
+    // Đặt mục tiêu tại tọa độ top/left ngẫu nhiên trong #arena
+    function moveTarget() {
+      const maxLeft = arena.clientWidth - target.offsetWidth;
+      const maxTop = arena.clientHeight - target.offsetHeight;
+      target.style.left = Math.floor(Math.random() * maxLeft) + "px";
+      target.style.top = Math.floor(Math.random() * maxTop) + "px";
     }
 
-    function render() {
-      display.textContent = format(remainingMs);
-      progress.style.width = (remainingMs / TOTAL_MS * 100) + "%";
-      display.classList.toggle("warning", remainingMs > 0 && remainingMs <= WARNING_MS);
+    // Bật bộ tự đổi vị trí mỗi 1 giây (xóa bộ cũ trước để không chạy chồng)
+    function restartMoveTimer() {
+      clearInterval(moveId);
+      moveId = setInterval(moveTarget, MOVE_EVERY_MS);
     }
 
-    function stopInterval() {
-      if (intervalId !== null) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
-    }
-
-    function tick() {
-      // Tính từ mốc kết thúc, không trừ dần 1 giây mỗi lần, nên không bị lệch
-      remainingMs = Math.max(0, endTime - now());
-      render();
-      if (remainingMs === 0) finish();
-    }
-
-    function start() {
-      if (intervalId !== null || remainingMs === 0) return; // tránh tạo interval thứ hai
-      endTime = now() + remainingMs;
-      intervalId = setInterval(tick, 250);
+    function startGame() {
+      score = 0;
+      timeLeft = GAME_SECONDS;
+      scoreEl.textContent = score;
+      timeEl.textContent = timeLeft;
+      resultEl.style.display = "none";
       startBtn.disabled = true;
-      pauseBtn.disabled = false;
+      target.style.display = "block";
+      moveTarget();
+      restartMoveTimer();
+      countdownId = setInterval(function () {
+        timeLeft--;
+        timeEl.textContent = timeLeft;
+        if (timeLeft <= 0) endGame();
+      }, 1000);
     }
 
-    function pause() {
-      stopInterval();
-      startBtn.textContent = "Tiếp tục";
-      startBtn.disabled = false;
-      pauseBtn.disabled = true;
+    function endGame() {
+      clearInterval(countdownId);
+      clearInterval(moveId);
+      target.style.display = "none";
+      arena.classList.add("locked");        // khóa toàn bộ thao tác
+      resultEl.textContent = "Hết giờ! Tổng điểm: " + score;
+      resultEl.style.display = "block";
     }
 
-    function reset() {
-      stopInterval();
-      remainingMs = TOTAL_MS;
-      startBtn.textContent = "Bắt đầu";
-      startBtn.disabled = false;
-      pauseBtn.disabled = true;
-      render();
-    }
-
-    function finish() {
-      stopInterval();
-      pauseBtn.disabled = true;
-      startBtn.disabled = true;
-      if (typeof modal.showModal === "function") modal.showModal();
-      else alert("Hết giờ!");
-    }
-
-    startBtn.addEventListener("click", start);
-    pauseBtn.addEventListener("click", pause);
-    resetBtn.addEventListener("click", reset);
-    closeBtn.addEventListener("click", () => { modal.close(); reset(); });
-
-    // Dọn interval khi rời trang
-    window.addEventListener("pagehide", stopInterval);
-
-    // Khi quay lại tab, tính lại ngay (tab nền có thể bị trình duyệt làm chậm timer)
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden && intervalId !== null) tick();
+    // Click trúng mục tiêu: +1 điểm, đổi vị trí ngay, tính lại 1 giây
+    target.addEventListener("click", function () {
+      score++;
+      scoreEl.textContent = score;
+      moveTarget();
+      restartMoveTimer();
     });
 
-    // Đồng bộ giờ với server qua header "Date" của một request HEAD
-    async function syncWithServer() {
-      try {
-        const t0 = Date.now();
-        const res = await fetch(location.href, { method: "HEAD", cache: "no-store" });
-        const t1 = Date.now();
-        const header = res.headers.get("Date");
-        if (!header) throw new Error("Không có header Date");
-        const serverTime = new Date(header).getTime() + (t1 - t0) / 2; // bù nửa độ trễ mạng
-        serverOffset = serverTime - t1;
-        syncEl.textContent = "Đã đồng bộ giờ với server (lệch " + Math.round(serverOffset) + " ms).";
-      } catch (e) {
-        syncEl.textContent = "Không đồng bộ được với server, đang dùng giờ của máy.";
-      }
-    }
-
-    render();
-    syncWithServer();
+    startBtn.addEventListener("click", startGame);
   </script>
 </body>
 </html>
